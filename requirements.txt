@@ -1,0 +1,21 @@
+# Python Dependencies for Cross-Fading Project
+opencv-python>=4.5.0
+numpy>=1.19.0
+
+# System Dependencies (install via package manager):
+# Ubuntu/Debian:
+# sudo apt update
+# sudo apt install build-essential g++ openmpi-bin openmpi-doc libopenmpi-dev python3 python3-pip libopencv-dev
+#
+# CentOS/RHEL:
+# sudo yum groupinstall "Development Tools"
+# sudo yum install openmpi openmpi-devel python3 python3-pip opencv-devel
+#
+# macOS (with Homebrew):
+# brew install gcc openmpi python3 opencv
+#
+# Windows:
+# Install MinGW-w64, MSYS2, or Visual Studio with C++ support
+# Install Microsoft MPI or OpenMPI for Windows
+# Install Python 3 from python.org
+# Install OpenCV: Download from https://opencv.org/releases/ and follow installation guide
