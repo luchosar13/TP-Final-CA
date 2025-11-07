@@ -36,7 +36,7 @@ check_opencv:
 
 # Performance analysis tool
 performance: performance_analysis.cpp
-	$(CXX) $(CXXFLAGS) -o performance_analysis performance_analysis.cpp
+	$(CXX) $(CXXFLAGS) `pkg-config --cflags opencv4` -o performance_analysis performance_analysis.cpp `pkg-config --libs opencv4`
 
 # Build all versions
 all: sequential mpi openmp performance

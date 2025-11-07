@@ -37,13 +37,13 @@ int main(int argc, char** argv) {
     cout << fixed << setprecision(3);
 
     if (argc != 2) {
-        cout << "Usage: " << argv[0] << " <image_path>" << endl;
+        cout << "Uso: " << argv[0] << " <ruta_imagen>" << endl;
         return -1;
     }
 
     Mat colorImg = imread(argv[1], IMREAD_COLOR);
     if (colorImg.empty()) {
-        cout << "Could not open or find the image" << endl;
+        cout << "No se pudo abrir o encontrar la imagen" << endl;
         return -1;
     }
 
@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
     Mat gray3;
     cvtColor(grayImg, gray3, COLOR_GRAY2BGR);
 
-    int frames = 96; // 4 seconds * 24 fps
+    int frames = 96; // 4 segundos * 24 fps
     Mat result(colorImg.rows, colorImg.cols, CV_8UC3); // Asignar memoria una sola vez
     auto start = high_resolution_clock::now();
 
@@ -70,9 +70,9 @@ int main(int argc, char** argv) {
         string filename = ss.str();
         imwrite(filename, result);
 
-        // Debug: print progress every 10 frames
+        // Debug: imprimir progreso cada 10 frames
         if ((i + 1) % 10 == 0) {
-            cout << "Generated frame " << i << " (p = " << fixed << setprecision(3) << p << ")" << endl;
+            cout << "Frame generado " << i << " (p = " << fixed << setprecision(3) << p << ")" << endl;
         }
     }
 

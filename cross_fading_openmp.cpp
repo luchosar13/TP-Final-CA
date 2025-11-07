@@ -35,7 +35,7 @@ void crossFade(const Mat& colorImg, const Mat& gray3, Mat& result, double p) {
 
 int main(int argc, char** argv) {
     if (argc != 3) {
-        cout << "Usage: " << argv[0] << " <image_path> <num_threads>" << endl;
+        cout << "Uso: " << argv[0] << " <ruta_imagen> <num_hilos>" << endl;
         return -1;
     }
 
@@ -44,35 +44,42 @@ int main(int argc, char** argv) {
 
     Mat colorImg = imread(argv[1], IMREAD_COLOR);
     if (colorImg.empty()) {
-        cout << "Could not open or find the image" << endl;
+        cout << "No se pudo abrir o encontrar la imagen" << endl;
         return -1;
     }
 
-    // Convertir a escala de grises
     Mat grayImg(colorImg.rows, colorImg.cols, CV_8UC1);
+    Mat gray3;
+    Mat result(colorImg.rows, colorImg.cols, CV_8UC3);
+
+    auto start = high_resolution_clock::now();
+
+    // Convertir a escala de grises
     convertToGrayscale(colorImg, grayImg);
 
     // convertir escala de grises a 3 canales para la mezcla
-    Mat gray3;
     cvtColor(grayImg, gray3, COLOR_GRAY2BGR);
 
-    int frames = 96; // 4 seconds * 24 fps
-    Mat result(colorImg.rows, colorImg.cols, CV_8UC3); // Asignar memoria una sola vez
-    auto start = high_resolution_clock::now();
+    int frames = 96; // 4 segundos * 24 fps
+    std::vector<Mat> results;
+    results.reserve(frames);
 
     for (int i = 0; i < frames; ++i) {
         double p = 1.0 - (double)i / (frames - 1);
-
-        // Llamar a la función paralela para hacer el cross-fade
+        Mat result(colorImg.rows, colorImg.cols, CV_8UC3);
         crossFade(colorImg, gray3, result, p);
-
-        string filename = "frame_openmp_" + to_string(num_threads) + "_" + to_string(i) + ".png";
-        imwrite(filename, result);
+        results.push_back(result);
     }
 
     auto end = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(end - start);
-    cout << "Tiempo de ejecucion de OpenMP (" << num_threads << " threads): " << duration.count() << " ms" << endl;
+    cout << "Tiempo de computo de OpenMP (" << num_threads << " hilos): " << duration.count() << " ms" << endl;
+
+    // Guardar frames (sin medir tiempo)
+    for (int i = 0; i < frames; ++i) {
+        string filename = "frame_openmp_" + to_string(num_threads) + "_" + to_string(i) + ".png";
+        imwrite(filename, results[i]);
+    }
 
     return 0;
 }

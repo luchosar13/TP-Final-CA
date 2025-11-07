@@ -1,93 +1,69 @@
 #include <iostream>
-#include <vector>
 #include <string>
-#include <fstream>
+#include <vector>
 #include <chrono>
 #include <cmath>
 #include <iomanip>
+#include <opencv2/opencv.hpp>
 
-// Simple BMP image structure (assuming 24-bit RGB)
-struct BMPImage {
-    int width;
-    int height;
-    std::vector<std::vector<std::vector<unsigned char>>> pixels; // [y][x][rgb]
+using namespace cv;
 
-    BMPImage(int w, int h) : width(w), height(h), pixels(h, std::vector<std::vector<unsigned char>>(w, std::vector<unsigned char>(3, 0))) {}
-};
-
-// Function to load BMP image (simplified, assumes 24-bit BMP without headers)
-BMPImage loadBMP(const std::string& filename, int width, int height) {
-    BMPImage img(width, height);
-    std::ifstream file(filename, std::ios::binary);
-    if (!file) {
-        std::cerr << "Error opening file: " << filename << std::endl;
-        return img;
-    }
-
-    // Skip BMP header (54 bytes for standard BMP)
-    file.seekg(54, std::ios::beg);
-
-    // Read pixel data (bottom-up)
-    for (int y = height - 1; y >= 0; --y) {
-        for (int x = 0; x < width; ++x) {
-            file.read(reinterpret_cast<char*>(&img.pixels[y][x][2]), 1); // B
-            file.read(reinterpret_cast<char*>(&img.pixels[y][x][1]), 1); // G
-            file.read(reinterpret_cast<char*>(&img.pixels[y][x][0]), 1); // R
-        }
-        // Skip padding if any (assuming 4-byte alignment)
-        int padding = (4 - (width * 3) % 4) % 4;
-        file.seekg(padding, std::ios::cur);
-    }
-
-    return img;
-}
-
-// Convert RGB to grayscale
-BMPImage rgbToGrayscale(const BMPImage& img) {
-    BMPImage gray(img.width, img.height);
-    for (int y = 0; y < img.height; ++y) {
-        for (int x = 0; x < img.width; ++x) {
-            unsigned char r = img.pixels[y][x][0];
-            unsigned char g = img.pixels[y][x][1];
-            unsigned char b = img.pixels[y][x][2];
-            unsigned char grayValue = static_cast<unsigned char>(0.299 * r + 0.587 * g + 0.114 * b);
-            gray.pixels[y][x][0] = gray.pixels[y][x][1] = gray.pixels[y][x][2] = grayValue;
+void convertToGrayscale(const Mat& colorImg, Mat& grayImg) {
+    for (int i = 0; i < colorImg.rows; ++i) {
+        for (int j = 0; j < colorImg.cols; ++j) {
+            Vec3b pixel = colorImg.at<Vec3b>(i, j);
+            grayImg.at<uchar>(i, j) = 0.299 * pixel[2] + 0.587 * pixel[1] + 0.114 * pixel[0];
         }
     }
-    return gray;
 }
 
-// Cross-fading function
-BMPImage crossFade(const BMPImage& img1, const BMPImage& img2, double p) {
-    BMPImage result(img1.width, img1.height);
-    for (int y = 0; y < img1.height; ++y) {
-        for (int x = 0; x < img1.width; ++x) {
-            for (int c = 0; c < 3; ++c) {
-                double val = img1.pixels[y][x][c] * p + img2.pixels[y][x][c] * (1.0 - p);
-                result.pixels[y][x][c] = static_cast<unsigned char>(std::round(val));
-            }
+void crossFade(const Mat& colorImg, const Mat& gray3, Mat& result, double p) {
+    result = Mat(colorImg.rows, colorImg.cols, CV_8UC3);
+    for (int i = 0; i < colorImg.rows; ++i) {
+        for (int j = 0; j < colorImg.cols; ++j) {
+            Vec3b colorPixel = colorImg.at<Vec3b>(i, j);
+            Vec3b grayPixel = gray3.at<Vec3b>(i, j);
+            result.at<Vec3b>(i, j) = Vec3b(
+                saturate_cast<uchar>(colorPixel[0] * p + grayPixel[0] * (1 - p)),
+                saturate_cast<uchar>(colorPixel[1] * p + grayPixel[1] * (1 - p)),
+                saturate_cast<uchar>(colorPixel[2] * p + grayPixel[2] * (1 - p))
+            );
         }
     }
-    return result;
 }
 
-// Performance measurement function
+
 double measurePerformance(int size, const std::string& inputFile) {
-    BMPImage original = loadBMP(inputFile, size, size);
-    if (original.width != size || original.height != size) {
-        std::cerr << "Error: Image size does not match specified size" << std::endl;
+
+    Mat original = imread(inputFile, IMREAD_COLOR);
+    if (original.empty()) {
+        std::cerr << "Error al abrir el archivo: " << inputFile << std::endl;
         return -1.0;
     }
 
-    BMPImage grayscale = rgbToGrayscale(original);
+    if (original.cols != size || original.rows != size) {
+        cv::resize(original, original, cv::Size(size, size));
+    }
+
+    Mat grayImg(original.rows, original.cols, CV_8UC1);
+    Mat gray3;
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    convertToGrayscale(original, grayImg);
+
+    cvtColor(grayImg, gray3, COLOR_GRAY2BGR);
+
 
     int totalFrames = 96;
-    auto start = std::chrono::high_resolution_clock::now();
+    std::vector<Mat> results;
+    results.reserve(totalFrames);
 
     for (int frame = 0; frame < totalFrames; ++frame) {
         double p = 1.0 - (double)frame / (totalFrames - 1);
-        BMPImage faded = crossFade(original, grayscale, p);
-        // Note: Not saving images in performance test to focus on computation time
+        Mat faded;
+        crossFade(original, gray3, faded, p);
+        results.push_back(faded);
     }
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -97,54 +73,45 @@ double measurePerformance(int size, const std::string& inputFile) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <input_image.bmp>" << std::endl;
-        std::cerr << "Note: The input image should be available in different sizes (800x800, 2000x2000, 5000x5000)" << std::endl;
+    if (argc < 3) {
+        std::cerr << "Uso: " << argv[0] << " <tamaño_imagen> <ruta_imagen>" << std::endl;
+        std::cerr << "Para calcular speedup y eficiencia, proveer también:" << std::endl;
+        std::cerr << "Uso: " << argv[0] << " <tamaño_imagen> <ruta_imagen> <tiempo_paralelo_segundos> <num_procesadores>" << std::endl;
         return 1;
     }
 
-    std::string baseInputFile = argv[1];
-
-    std::vector<int> sizes = {800, 2000, 5000};
-    std::vector<double> sequentialTimes;
+    int size = std::stoi(argv[1]);
+    std::string inputFile = argv[2];
 
     std::cout << std::fixed << std::setprecision(4);
-    std::cout << "Performance Analysis for Cross-Fading Algorithm" << std::endl;
-    std::cout << "=================================================" << std::endl << std::endl;
 
-    // Measure sequential performance for different sizes
-    std::cout << "Sequential Implementation:" << std::endl;
-    for (int size : sizes) {
-        std::string inputFile = baseInputFile + "_" + std::to_string(size) + "x" + std::to_string(size) + ".bmp";
-        double time = measurePerformance(size, inputFile);
-        if (time > 0) {
-            sequentialTimes.push_back(time);
-            std::cout << "Size " << size << "x" << size << ": " << time << " seconds" << std::endl;
-        } else {
-            std::cout << "Size " << size << "x" << size << ": Error loading image" << std::endl;
-            sequentialTimes.push_back(0.0);
-        }
+    std::cout << "Calculando tiempo secuencial para tamaño " << size << "x" << size << "..." << std::endl;
+    double sequentialTime = measurePerformance(size, inputFile);
+
+    if (sequentialTime < 0) {
+        return 1;
     }
 
-    std::cout << std::endl;
-    std::cout << "Expected Parallel Performance:" << std::endl;
-    std::cout << "(Run MPI and OpenMP versions separately and compare)" << std::endl;
-    std::cout << std::endl;
+    std::cout << "Tiempo Secuencial: " << sequentialTime << " segundos" << std::endl;
 
-    std::cout << "Speedup = Sequential_Time / Parallel_Time" << std::endl;
-    std::cout << "Efficiency = Speedup / Number_of_Processors" << std::endl;
-    std::cout << std::endl;
+    if (argc == 5) {
+        double parallelTime = std::stod(argv[3]);
+        int numProcessors = std::stoi(argv[4]);
 
-    std::cout << "For MPI version, test with different numbers of processes." << std::endl;
-    std::cout << "For OpenMP version, test with different numbers of threads." << std::endl;
-    std::cout << std::endl;
+        if (parallelTime > 0 && numProcessors > 0) {
+            double speedup = sequentialTime / parallelTime;
+            double efficiency = speedup / numProcessors;
 
-    std::cout << "Analysis Tips:" << std::endl;
-    std::cout << "- Measure time for grayscale conversion separately" << std::endl;
-    std::cout << "- Measure time for cross-fading separately" << std::endl;
-    std::cout << "- Consider communication overhead in MPI" << std::endl;
-    std::cout << "- Consider thread overhead in OpenMP" << std::endl;
-    std::cout << "- Test on different hardware configurations" << std::endl;
+            std::cout << "----------------------------------" << std::endl;
+            std::cout << "Métricas de Rendimiento:" << std::endl;
+            std::cout << "Tiempo Paralelo:   " << parallelTime << " segundos" << std::endl;
+            std::cout << "Num Procesadores:  " << numProcessors << std::endl;
+            std::cout << "Speedup:         " << speedup << std::endl;
+            std::cout << "Eficiencia:      " << efficiency << std::endl;
+        }
+    } else {
+        std::cout << "\nPara calcular Speedup y Eficiencia, ejecute de nuevo con el tiempo paralelo y el número de procesadores." << std::endl;
+    }
 
     return 0;
 }

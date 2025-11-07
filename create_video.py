@@ -12,16 +12,7 @@ import glob
 import argparse
 
 def create_video_from_frames(frame_prefix, output_video, fps=24):
-    """
-    Create a video file from BMP frames.
 
-    Args:
-        frame_prefix (str): Prefix of frame files (e.g., "frame" for frame_0.bmp, frame_1.bmp, etc.)
-        output_video (str): Output video filename
-        fps (int): Frames per second for the video
-    """
-
-    # Find all frame files - try different patterns
     patterns = [
         f"{frame_prefix}_*.png",
         f"{frame_prefix}_*.bmp",
@@ -32,14 +23,12 @@ def create_video_from_frames(frame_prefix, output_video, fps=24):
     frame_files = []
     import re
     for pattern in patterns:
-        # Use a regex to extract numbers and sort numerically
         try:
             frame_files = sorted(
                 glob.glob(pattern),
                 key=lambda f: int(re.search(r'_(\d+)\.(png|bmp)$', f).group(1))
             )
         except (AttributeError, ValueError):
-            # Fallback for filenames that don't match the pattern
             frame_files = sorted(glob.glob(pattern))
 
         if frame_files:
@@ -50,10 +39,8 @@ def create_video_from_frames(frame_prefix, output_video, fps=24):
         print(f"No frame files found with any of these patterns: {patterns}")
         return False
 
-    # Frame ordering is now guaranteed by the sort above
     print(f"Frame ordering verified: {len(frame_files)} frames from 0 to {len(frame_files)-1}")
 
-    # Read first frame to get dimensions
     first_frame = cv2.imread(frame_files[0])
     if first_frame is None:
         print(f"Error reading first frame: {frame_files[0]}")
@@ -62,8 +49,7 @@ def create_video_from_frames(frame_prefix, output_video, fps=24):
     height, width = first_frame.shape[:2]
     print(f"Frame dimensions: {width}x{height}")
 
-    # Create video writer
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # MP4 codec
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     video_writer = cv2.VideoWriter(output_video, fourcc, fps, (width, height))
 
     if not video_writer.isOpened():
@@ -72,7 +58,6 @@ def create_video_from_frames(frame_prefix, output_video, fps=24):
 
     print(f"Creating video: {output_video}")
 
-    # Add frames to video in numerical order
     print("Processing frames in order:")
     for i, frame_file in enumerate(frame_files):
         frame = cv2.imread(frame_file)
@@ -82,14 +67,12 @@ def create_video_from_frames(frame_prefix, output_video, fps=24):
 
         video_writer.write(frame)
 
-        # Show first few and last few frame filenames for verification
         if i < 3 or i >= len(frame_files) - 3:
             print(f"  Frame {i}: {os.path.basename(frame_file)}")
 
         if (i + 1) % 10 == 0:
             print(f"Processed {i + 1}/{len(frame_files)} frames")
 
-    # Ensure all frames are written by checking frame count
     expected_frames = len(frame_files)
     print(f"Expected {expected_frames} frames, processed {len(frame_files)} frames")
 
